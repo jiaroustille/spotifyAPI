@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Top Tracks</title>
+</head>
+<body>
+
+<h1>Your Top Tracks</h1>
+
+<div class="tabs">
+    <button onclick="showTracks('short_term')" class="active">4 Weeks</button>
+    <button onclick="showTracks('medium_term')">6 Months</button>
+    <button onclick="showTracks('long_term')">All Time</button>
+</div>
+
+<div id="tracks" class="grid"></div>
+
+<script>
+let trackData = null;
+
+async function loadTracks() {
+    const res = await fetch("http://localhost:3000/top-tracks");
+    trackData = await res.json();
+    showTracks("short_term");
+}
+
+function showTracks(range) {
+    document.querySelectorAll(".tabs button").forEach(btn => btn.classList.remove("active"));
+    document.querySelector(`button[onclick="showTracks('${range}')"]`).classList.add("active");
+
+    const container = document.getElementById("tracks");
+    const items = trackData[range];
+
+    container.innerHTML = items.map(t => `
+        <div class="card">
+            <img src="${t.album.images[0].url}">
+            <div class="track">${t.name}</div>
+            <div class="artist">${t.artists.map(a => a.name).join(", ")}</div>
+        </div>
+    `).join("");
+}
+
+loadTracks();
+</script>
+
+</body>
+</html>

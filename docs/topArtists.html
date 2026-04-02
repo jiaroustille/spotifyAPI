@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Top Artists</title>
+</head>
+<body>
+
+<h1>Your Top Artists</h1>
+
+<div class="tabs">
+    <button onclick="showArtists('short_term')" class="active">4 Weeks</button>
+    <button onclick="showArtists('medium_term')">6 Months</button>
+    <button onclick="showArtists('long_term')">All Time</button>
+</div>
+
+<div id="artists" class="grid"></div>
+
+<script>
+let artistData = null;
+
+async function loadArtists() {
+    const res = await fetch("http://localhost:3000/top-artists");
+    artistData = await res.json();
+    showArtists("short_term");
+}
+
+function showArtists(range) {
+    document.querySelectorAll(".tabs button").forEach(btn => btn.classList.remove("active"));
+    document.querySelector(`button[onclick="showArtists('${range}')"]`).classList.add("active");
+
+    const container = document.getElementById("artists");
+    const items = artistData[range];
+
+    container.innerHTML = items.map(a => `
+        <div class="card">
+            <img src="${a.images[0]?.url || ''}">
+            <div class="name">${a.name}</div>
+            <div class="genres">${a.genres.slice(0, 3).join(", ")}</div>
+        </div>
+    `).join("");
+}
+
+loadArtists();
+</script>
+
+</body>
+</html>

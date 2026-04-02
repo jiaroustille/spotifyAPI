@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Now Playing</title>
+</head>
+<body>
+
+<div class="card" id="player">
+    <p>Loading...</p>
+</div>
+
+<script>
+async function loadNowPlaying() {
+    const container = document.getElementById("player");
+
+    try {
+        const res = await fetch("http://localhost:3000/now-playing");
+        const data = await res.json();
+
+        if (!data || !data.item) {
+            container.innerHTML = `
+                <p class="track">Nothing Playing</p>
+                <p class="artist">Open Spotify and start a track</p>
+            `;
+            return;
+        }
+
+        const track = data.item;
+
+        container.innerHTML = `
+            <img src="${track.album.images[0].url}" alt="Album Art">
+            <div class="track">${track.name}</div>
+            <div class="artist">${track.artists.map(a => a.name).join(", ")}</div>
+            <div class="status">Playing on Spotify</div>
+        `;
+    } catch (err) {
+        container.innerHTML = `<p>Error loading now playing</p>`;
+    }
+}
+
+// Load immediately
+loadNowPlaying();
+
+// Refresh every 10 seconds
+setInterval(loadNowPlaying, 10000);
+</script>
+
+</body>
+</html>
