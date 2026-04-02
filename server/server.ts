@@ -8,28 +8,22 @@ dotenv.config();
 const app = express();
 app.use(cors());
 
-// ───────────────────────────────────────────────────────────
-//  CONFIG
-// ───────────────────────────────────────────────────────────
-
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID!;
+const CLIENT_SECRET = process.env.CLIENT_SECRET!;
+const REFRESH_TOKEN = process.env.REFRESH_TOKEN!;
 
 const BASIC = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
 
-// Cached token
-let accessToken: null = null;
+let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 
 // ───────────────────────────────────────────────────────────
-//  TOKEN HANDLING
+//  ACCESS TOKEN
 // ───────────────────────────────────────────────────────────
 
-async function getAccessToken() {
+async function getAccessToken(): Promise<string> {
     const now = Date.now();
 
-    // Reuse token if still valid
     if (accessToken && now < tokenExpiresAt) {
         return accessToken;
     }
@@ -43,32 +37,30 @@ async function getAccessToken() {
         body: `grant_type=refresh_token&refresh_token=${REFRESH_TOKEN}`
     });
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; expires_in: number };
 
     accessToken = data.access_token;
-    tokenExpiresAt = now + (data.expires_in * 1000) - 5000; // refresh 5s early
+    tokenExpiresAt = now + data.expires_in * 1000 - 5000;
 
     return accessToken;
 }
 
 // ───────────────────────────────────────────────────────────
-//  SPOTIFY REQUEST WRAPPER (handles 429 safely)
+//  SPOTIFY REQUEST WRAPPER
 // ───────────────────────────────────────────────────────────
 
-async function spotifyRequest(endpoint) {
+async function spotifyRequest(endpoint: string) {
     const token = await getAccessToken();
 
     const response = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
     });
 
-    // Handle rate limit
     if (response.status === 429) {
         const retry = response.headers.get("Retry-After");
         throw new Error(`Rate limited. Retry after ${retry} seconds.`);
     }
 
-    // Handle non-JSON responses safely
     const text = await response.text();
 
     try {
@@ -82,18 +74,17 @@ async function spotifyRequest(endpoint) {
 //  ROUTES
 // ───────────────────────────────────────────────────────────
 
-// USER PROFILE
-app.get("/user", async (req, res) => {
+app.get("/user", async (_req, res) => {
     try {
         const user = await spotifyRequest("me");
         res.json(user);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
     }
 });
 
-// NOW PLAYING
-app.get("/now-playing", async (req, res) => {
+app.get("/now-playing", async (_req, res) => {
     try {
         const token = await getAccessToken();
         const response = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
@@ -107,12 +98,12 @@ app.get("/now-playing", async (req, res) => {
         const data = await response.json();
         res.json(data);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
     }
 });
 
-// TOP TRACKS
-app.get("/top-tracks", async (req, res) => {
+app.get("/top-tracks", async (_req, res) => {
     try {
         const shortTerm = await spotifyRequest("me/top/tracks?time_range=short_term");
         const mediumTerm = await spotifyRequest("me/top/tracks?time_range=medium_term");
@@ -124,12 +115,12 @@ app.get("/top-tracks", async (req, res) => {
             long_term: longTerm.items
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
     }
 });
 
-// TOP ARTISTS
-app.get("/top-artists", async (req, res) => {
+app.get("/top-artists", async (_req, res) => {
     try {
         const shortTerm = await spotifyRequest("me/top/artists?time_range=short_term");
         const mediumTerm = await spotifyRequest("me/top/artists?time_range=medium_term");
@@ -141,7 +132,8 @@ app.get("/top-artists", async (req, res) => {
             long_term: longTerm.items
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
     }
 });
 
@@ -149,6 +141,7 @@ app.get("/top-artists", async (req, res) => {
 //  SERVER
 // ───────────────────────────────────────────────────────────
 
-app.listen(3000, () => {
-    console.log("Server running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
