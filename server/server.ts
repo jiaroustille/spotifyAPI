@@ -18,6 +18,31 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 
 // ───────────────────────────────────────────────────────────
+//  CACHE SYSTEM
+// ───────────────────────────────────────────────────────────
+
+const cache: Record<string, { timestamp: number; data: any }> = {};
+
+const CACHE = {
+    user: 60 * 60 * 1000,         // 1 hour
+    nowPlaying: 5 * 1000,         // 5 seconds
+    topTracks: 60 * 60 * 1000,    // 1 hour
+    topArtists: 60 * 60 * 1000    // 1 hour
+};
+
+function getCached(key: string, duration: number) {
+    const entry = cache[key];
+    if (entry && Date.now() - entry.timestamp < duration) {
+        return entry.data;
+    }
+    return null;
+}
+
+function setCached(key: string, data: any) {
+    cache[key] = { timestamp: Date.now(), data };
+}
+
+// ───────────────────────────────────────────────────────────
 //  ACCESS TOKEN
 // ───────────────────────────────────────────────────────────
 
@@ -71,12 +96,18 @@ async function spotifyRequest(endpoint: string) {
 }
 
 // ───────────────────────────────────────────────────────────
-//  ROUTES
+//  ROUTES WITH CACHING
 // ───────────────────────────────────────────────────────────
 
+// USER
 app.get("/user", async (_req, res) => {
     try {
+        const cached = getCached("user", CACHE.user);
+        if (cached) return res.json(cached);
+
         const user = await spotifyRequest("me");
+        setCached("user", user);
+
         res.json(user);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -84,18 +115,26 @@ app.get("/user", async (_req, res) => {
     }
 });
 
+// NOW PLAYING
 app.get("/now-playing", async (_req, res) => {
     try {
+        const cached = getCached("nowPlaying", CACHE.nowPlaying);
+        if (cached) return res.json(cached);
+
         const token = await getAccessToken();
         const response = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
             headers: { Authorization: `Bearer ${token}` }
         });
 
         if (response.status === 204) {
-            return res.json({ playing: false, track: null });
+            const empty = { playing: false, track: null };
+            setCached("nowPlaying", empty);
+            return res.json(empty);
         }
 
         const data = await response.json();
+        setCached("nowPlaying", data);
+
         res.json(data);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -103,34 +142,50 @@ app.get("/now-playing", async (_req, res) => {
     }
 });
 
+// TOP TRACKS
 app.get("/top-tracks", async (_req, res) => {
     try {
+        const cached = getCached("topTracks", CACHE.topTracks);
+        if (cached) return res.json(cached);
+
         const shortTerm = await spotifyRequest("me/top/tracks?time_range=short_term");
         const mediumTerm = await spotifyRequest("me/top/tracks?time_range=medium_term");
         const longTerm = await spotifyRequest("me/top/tracks?time_range=long_term");
 
-        res.json({
+        const payload = {
             short_term: shortTerm.items,
             medium_term: mediumTerm.items,
             long_term: longTerm.items
-        });
+        };
+
+        setCached("topTracks", payload);
+
+        res.json(payload);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
     }
 });
 
+// TOP ARTISTS
 app.get("/top-artists", async (_req, res) => {
     try {
+        const cached = getCached("topArtists", CACHE.topArtists);
+        if (cached) return res.json(cached);
+
         const shortTerm = await spotifyRequest("me/top/artists?time_range=short_term");
         const mediumTerm = await spotifyRequest("me/top/artists?time_range=medium_term");
         const longTerm = await spotifyRequest("me/top/artists?time_range=long_term");
 
-        res.json({
+        const payload = {
             short_term: shortTerm.items,
             medium_term: mediumTerm.items,
             long_term: longTerm.items
-        });
+        };
+
+        setCached("topArtists", payload);
+
+        res.json(payload);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
